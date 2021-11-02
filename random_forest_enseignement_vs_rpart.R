@@ -8,7 +8,7 @@
 
 #import du fichier CSv sans accent 
 
-#Chemin ? modifier
+#Chemin d acces
 setwd("C:\\Users\\Francis\\R_new\\random forest\\data-enseignement")
 #verification
 #getwd()
@@ -25,12 +25,13 @@ library(dplyr)      # pour mutate_at et %>%
 library(tidyverse)
 library(tidyr)      # pour unnest et separate
 library(caret)
-#dplyr contient les op?rateurs %>% qui permettent le data wrangling (operation sur la BDD)
+#dplyr contient les operateurs %>% qui permettent le data wrangling (operation sur la BDD)
 
 
-educ_small <- educ %>%
-  filter(Academie == "RENNES") %>%##filtre par academie
-  select(Type.etablissement, Secteur.enseignement,Groupe.de.personnels, Titulaire, Sexe, Borne.inferieure.de.la.tranche.age, Nombre.agents,Code.region)##selectionne les colonnes qu'on veut
+#attention select doit etre remplace par dplyr::select car un autre package utilise la fonction select
+educ_small <- educ %>%  filter(Academie == "RENNES") %>% 
+  dplyr::select(Type.etablissement, Secteur.enseignement,Groupe.de.personnels, Titulaire, Sexe, Borne.inferieure.de.la.tranche.age, Nombre.agents,Code.region)
+##selectionne les colonnes que l on veut conserver
 
 
 #faire tourner ces operations 1 par 1 pour comprendre le data wrangling
@@ -41,7 +42,7 @@ educ_small_test <- educ_small %>%
   mutate( Agent = list(rep( Sexe, Nombre.agents) ) ) %>%
   unnest() %>% # explose la base de maniere ? avoir 87123 ligne (cad le nb d agent)
   ungroup() %>% #ne sert a rien
-  select(-Idx) #retire la colonne Idx
+  dplyr::select(-Idx) #retire la colonne Idx
 
 
 sum(educ_small$Nombre.agents)
@@ -135,7 +136,7 @@ nrow(test)
 
 #Fichier des résulats avec la colonne de resultat des previsions titulaire et contractuel
 #write.csv(test$predicted,file=".\\temp.csv")
-write.csv(test,file=".\\test.csv")
+#write.csv(test,file=".\\test.csv")
 
 library(caret)
 conf <- confusionMatrix(data = test$predicted, reference = test$Titulaire)
@@ -175,18 +176,15 @@ conf$byClass["Sensitivity"] #taux de vrais positifs
 #install.packages("rpart")
 #install.packages("rpart.plot")
 
-
 library(rpart)
 library(rpart.plot)
 
-
 lapply(educ_small2,class)
-
 
 #ptitanicTree <- rpart(survived~.,data=ptitanic)
 #educ_small2_Tree <- rpart(Titulaire~.,data=educ_small2)
 
-
+set.seed(2811)
 educ_Tree <- rpart(Titulaire~.,data=train,control=rpart.control(minsplit=5,cp=0),na.action=na.pass)
 #on retire les NA 
 
@@ -200,10 +198,8 @@ educ_Tree <- rpart(Titulaire~.,data=train,control=rpart.control(minsplit=5,cp=0)
 
 #plotcp(educ_Tree) 
 educ_Tree$cptable
-write.csv(educ_Tree$cptable,file=".\\educ_tree_cptable.csv")
+#write.csv(educ_Tree$cptable,file=".\\educ_tree_cptable.csv")
 
-
-#(reprendre ici)
 
 
 #Simplification
@@ -216,21 +212,22 @@ educ_Simple <- prune(educ_Tree,cp=0.0000316)
 #test
 #educ_Simple <- prune(educ_Tree,cp=0.001)
 
-plotcp(educ_Simple) #le graphe optimal a ? feuilles
+plotcp(educ_Simple) #le graphe optimal a beaucoup de feuilles
 prp(educ_Simple,extra=1)
 
-
+set.seed(2811)
 educ_Tree_optimal <- prune(educ_Tree,cp=educ_Tree$cptable[which.min(educ_Tree$cptable[,4]),1])
 #ptitanicOptimal <- prune(ptitanicTree,cp=ptitanicTree$cptable[which.min(ptitanicTree$cptable[,4]),1])
 print(educ_Tree$cptable[which.min(educ_Tree$cptable[,4]),1])
 
-plotcp(educ_Tree_optimal) #le graphe optimal a ? feuilles
+plotcp(educ_Tree_optimal) #le graphe optimal a beaucoup de feuilles
 prp(educ_Tree_optimal,extra=1)
 #l arbre semble etre trop touffu, cependant les previsions sont plutôt bonnes
 
 
 #Par defaut, la fonction estime les probabilites d appartenance aux classes pour chaque observation 
 #(simplement par le ratio dans la feuille correspondante). Par exemple le code suivant
+set.seed(2811)
 predict(educ_Tree, test, type="class")
 
 table(test$Titulaire, predict(educ_Tree, test, type="class"))
@@ -239,7 +236,7 @@ table(test$Titulaire, predict(educ_Tree, test, type="class"))
 #               Contractuel Titulaire
 #Contractuel        7639       208
 #Titulaire           223      9355
-#ca a l air bon 
+#semble correct en terme de resultats
 
 
 tree<-educ_Tree
@@ -249,10 +246,10 @@ data<- test
 
 
 #predict(ptitanicOptimal, type="class")
-
+set.seed(2811)
 pred<-predict(tree, test, type="class",na.action = na.omit)
 
-write.csv(pred,file=".\\temp_rpart.csv")
+#write.csv(pred,file=".\\temp_rpart.csv")
 
 #on observe des resultats sensiblement identiques avec rpart que random forest
 
@@ -291,10 +288,11 @@ library(MASS)
 
 #nombre agent et Idx ne sont pas des factors
 
-#attention ? cette syntaxe la repetition du code peut poser probleme
+#attention a cette syntaxe la repetition du code peut poser probleme
 train2<-train[-7] #je retire la col nb agent
 train2<-train2[-8] #je retire la col IDX
-train2<-train2[-7] #je retire la col code.region (car 1 seule val)
+train2<-train2[-7] #je retire la col code.region 
+#(car 1 seule val ce qui pose probleme pour la fonction nnet)
 colnames(train2)
 
 #la colonne code.region pose problem car elle ne contient qu une val =53 et NA
@@ -303,7 +301,7 @@ colnames(train2)
 
 
 
-model.dis <- nnet(train2$Titulaire~.,data = train2, size = 2, decay = 0.001,na.action=na.omit)
+#model.dis <- nnet(train2$Titulaire~.,data = train2, size = 2, decay = 0.001,na.action=na.omit)
 
 #colnames(train2)
 #class(train2$Type.etablissement)
@@ -332,29 +330,45 @@ new_test<-new_test[-7] #je retire la col code.region (car 1 seule val)
 
 colnames(new_test)
 
-pred2<-predict(model.dis, newdata = new_test,type ="class",na.action=na.omit)
-length(pred2)
+#pred2<-predict(model.dis, newdata = new_test,type ="class",na.action=na.omit)
+#length(pred2)
 #summary(model.dis)
 
 
 mat = table(pred2, new_test$Titulaire)
 
-model.dis2 <- nnet(train2$Titulaire~.,data = train2, size = 10, decay = 0.001,na.action=na.omit)
+set.seed(2811)
+model.dis2 <- nnet(train2$Titulaire~.,data = train2, size = 5, decay = 0.001,na.action=na.omit)
 pred3<-predict(model.dis2, newdata = new_test,type ="class",na.action=na.omit)
 mat2 = table(pred3, new_test$Titulaire)
 mat2
 
+
+
 #result avec Percepteur Multi Couches (PMC) (reseau de neuronnes)
-#pred3         Contractuel Titulaire
-#Contractuel        7056       210
-#Titulaire           791      9368
+#Confusion Matrix and Statistics
 
-#revoir
-#conf_nnet <- confusionMatrix(data = pred3, reference = test$Titulaire)
-#conf_nnet
+conf_nnet <- confusionMatrix(data = as.factor(pred3), reference = test$Titulaire)
+conf_nnet
+
+conf_nnet$byClass["Sensitivity"] #taux de vrais positifs
 
 
-write.csv(pred3,file=".\\temp_nnet.csv")
+#0.8988148  taux de bonnes predictions pour les contractuel 
+
+conf_nnet$byClass["Specificity"] #taux de vrais negatifs
+#0.9782836
+
+#Reference
+#Prediction    Contractuel Titulaire
+#Contractuel        7053       211
+#Titulaire           794      9367
+#Accuracy : 0.9425    taux de bonne prévision 
+#(size=5 dans nnet empiriquement le meilleur resultat, les resultats ne changent pratiquement pas
+#si j'accrois le nombre de couches)
+
+
+#write.csv(pred3,file=".\\temp_nnet.csv")
 
 
 
